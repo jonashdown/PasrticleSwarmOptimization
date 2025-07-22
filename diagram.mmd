@@ -1,0 +1,98 @@
+
+graph TD
+    subgraph Types
+        ICoordinate
+        IVelocity
+        IParticle
+        ISwarm
+        ITarget
+        IField
+        ICostFunction
+        DimensionalArray
+    end
+
+    subgraph Functions
+        validateCoordinate
+        validateVelocity
+        range
+    end
+
+    subgraph Classes
+        Particle
+        Swarm
+        AEdgeDetector
+        ATargetDetector
+        AField
+        ASimulation
+        CoordinateConverter
+        SimpleSquare
+    end
+
+    subgraph React
+        subgraph Components
+            FieldComponent["Field"]
+            ParticleComponent["TwoDimensionalParticle"]
+            TargetComponent["TwoDimensionalTarget"]
+        end
+        subgraph Contexts
+            PSOContext
+        end
+    end
+
+    %% Dependencies
+    ICoordinate --> DimensionalArray
+    IVelocity --> DimensionalArray
+    IParticle --> ICoordinate
+    IParticle --> IVelocity
+    ISwarm --> IParticle
+    ISwarm --> ICoordinate
+    ISwarm --> ITarget
+    IField --> ICoordinate
+    ITarget --> ICoordinate
+    ICostFunction --> IParticle
+
+    validateCoordinate --> ICoordinate
+    validateVelocity --> IVelocity
+
+    Particle --> IParticle
+    Particle --> ICoordinate
+    Particle --> IVelocity
+    Particle --> ATargetDetector
+    Particle --> AEdgeDetector
+    Particle --> validateCoordinate
+    Particle --> validateVelocity
+
+    Swarm --> ISwarm
+    Swarm --> IParticle
+    Swarm --> ITarget
+    Swarm --> AField
+    Swarm --> ICoordinate
+    Swarm --> Particle
+
+    AEdgeDetector --> ICoordinate
+    AEdgeDetector --> IVelocity
+    ATargetDetector --> ICoordinate
+    ATargetDetector --> validateCoordinate
+    AField --> IField
+    AField --> ICoordinate
+    AField --> IVelocity
+
+    CoordinateConverter --> ICoordinate
+
+    SimpleSquare --> ISwarm
+    SimpleSquare --> IParticle
+    SimpleSquare --> ICoordinate
+    SimpleSquare --> IVelocity
+    SimpleSquare --> AEdgeDetector
+    SimpleSquare --> ATargetDetector
+    SimpleSquare --> Particle
+
+    FieldComponent --> IField
+    FieldComponent --> ICoordinate
+    FieldComponent --> PSOContext
+    ParticleComponent --> IParticle
+    ParticleComponent --> PSOContext
+    TargetComponent --> ICoordinate
+    TargetComponent --> PSOContext
+
+    PSOContext --> CoordinateConverter

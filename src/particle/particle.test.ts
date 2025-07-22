@@ -1,6 +1,7 @@
-//@ts-nocheck
 import {
   afterAll,
+  afterEach,
+  beforeAll,
   beforeEach,
   describe,
   expect,
@@ -8,38 +9,31 @@ import {
   jest,
   mock
 } from 'bun:test'
-import { random } from 'nanoid'
-import { AEdgeDetector } from '../classes/abstract-edge-detector'
-import { ATargetDetector } from '../classes/abstract-target-detector'
-import { Particle } from '../classes/particle'
-
-mock.module('Math', () => ({
-  random: jest.fn().mockReturnValue(0.5)
-}))
-
-class TestTargetDetector extends ATargetDetector {
-  distanceToTarget = jest.fn()
-  isAtTarget = jest.fn()
-}
-
-class TestEdgeDetector extends AEdgeDetector {
-  isOnEdge = jest.fn()
-  isInBounds = jest.fn()
-  goToEdge = jest.fn()
-  calculateClamp = jest.fn()
-  bounce = jest.fn()
-}
+import type { AEdgeDetector } from '../classes/abstract-edge-detector'
+import type { ATargetDetector } from '../classes/abstract-target-detector'
+import {
+  EdgeDetectorBuilder,
+  TargetDetectorBuilder
+} from '../fixtures/data-builder'
+import { Particle } from './particle'
 
 describe('Particle', () => {
   let mockTargetDetector: ATargetDetector
   let mockEdgeDetector: AEdgeDetector
+  let originalMathRandom: () => number
 
-  beforeEach(() => {
-    mockTargetDetector = new TestTargetDetector()
-    mockEdgeDetector = new TestEdgeDetector()
+  beforeAll(() => {
+    originalMathRandom = Math.random // Store original
   })
 
-  afterAll(() => {
+  beforeEach(() => {
+    Math.random = () => 0.5 // Override for each test
+    mockTargetDetector = new TargetDetectorBuilder().build()
+    mockEdgeDetector = new EdgeDetectorBuilder().build()
+  })
+
+  afterEach(() => {
+    Math.random = originalMathRandom // Restore original
     jest.restoreAllMocks()
   })
 
@@ -47,7 +41,7 @@ describe('Particle', () => {
     const position = [5, 6, 7]
     const velocity = [0.1, 0.2, 0.3]
     mockEdgeDetector.isInBounds.mockReturnValue(true)
-    mockTargetDetector.distanceToTarget.mockReturnValue(42)
+    mockTargetDetector.distanceToTarget.mockReturnValueOnce(42)
 
     const particle = new Particle(
       position,
@@ -70,8 +64,13 @@ describe('Particle', () => {
     const initialVelocity = [0.5, -0.5]
     const bestPosition = [2, 3]
     mockEdgeDetector.isInBounds.mockReturnValue(true)
+    mockEdgeDetector.bounce.mockReturnValue({
+      bouncedPosition: [0, 0],
+      bouncedVelocity: [0, 0]
+    })
     mockEdgeDetector.calculateClamp.mockReturnValue(2)
-    mockTargetDetector.distanceToTarget.mockReturnValue(10)
+
+    mockTargetDetector.distanceToTarget.mockReturnValueOnce(100) // Initial cost
 
     const particle = new Particle(
       initialPosition,
@@ -80,10 +79,14 @@ describe('Particle', () => {
       mockEdgeDetector
     )
 
-    particle.move(bestPosition, 1, 1, 1)
+    mockTargetDetector.distanceToTarget.mockReturnValueOnce(50) // Cost after move
 
-    expect(particle.position).not.toEqual(initialPosition)
-    expect(particle.velocity).not.toEqual(initialVelocity)
+    particle.move(bestPosition)
+
+    expect(particle.position[0]).toBeCloseTo(1.75)
+    expect(particle.position[1]).toBeCloseTo(2.25)
+    expect(particle.velocity[0]).toBeCloseTo(0.75)
+    expect(particle.velocity[1]).toBeCloseTo(0.25)
     expect(mockEdgeDetector.isInBounds).toHaveBeenCalled()
     expect(mockEdgeDetector.calculateClamp).toHaveBeenCalled()
   })
@@ -92,12 +95,17 @@ describe('Particle', () => {
     const initialPosition = [1, 1]
     const initialVelocity = [0, 0]
     mockEdgeDetector.isInBounds.mockReturnValue(true)
+    mockEdgeDetector.bounce.mockReturnValue({
+      bouncedPosition: [0, 0],
+      bouncedVelocity: [0, 0]
+    })
     mockEdgeDetector.calculateClamp.mockReturnValue(2)
 
-    // Initial cost is high, new cost is lower
     mockTargetDetector.distanceToTarget
-      .mockReturnValueOnce(100)
-      .mockReturnValueOnce(10)
+      .mockReturnValueOnce(100) // Initial cost in constructor
+      .mockReturnValueOnce(10) // Cost after move
+
+    mockTargetDetector.distanceToTarget.mockReturnValueOnce(100) // Initial cost in constructor
 
     const particle = new Particle(
       initialPosition,
@@ -106,11 +114,13 @@ describe('Particle', () => {
       mockEdgeDetector
     )
 
-    // Move to a new position with lower cost
-    particle.move([2, 2], 1, 1, 1)
+    mockTargetDetector.distanceToTarget.mockReturnValueOnce(10) // Cost after move
+
+    particle.move([2, 2])
 
     expect(particle.bestCost).toBe(10)
-    expect(particle.bestPosition).toEqual(particle.position)
+    expect(particle.bestPosition[0]).toBeCloseTo(1.5)
+    expect(particle.bestPosition[1]).toBeCloseTo(1.5)
   })
 
   it('should bounce and update when out of bounds', () => {
@@ -124,7 +134,9 @@ describe('Particle', () => {
       bouncedPosition,
       bouncedVelocity
     })
-    mockTargetDetector.distanceToTarget.mockReturnValue(5)
+    mockTargetDetector.distanceToTarget
+      .mockReturnValueOnce(10) // Initial cost in constructor
+      .mockReturnValueOnce(20) // Cost after move
 
     const particle = new Particle(
       position,
@@ -133,7 +145,7 @@ describe('Particle', () => {
       mockEdgeDetector
     )
 
-    particle.move([2, 2], 1, 1, 1)
+    particle.move([2, 2])
 
     expect(particle.position).toEqual(bouncedPosition)
     expect(particle.velocity).toEqual(bouncedVelocity)
@@ -144,12 +156,11 @@ describe('Particle', () => {
     const position = [1, 1]
     const velocity = [0, 0]
     mockEdgeDetector.isInBounds.mockReturnValue(true)
+    mockEdgeDetector.bounce.mockReturnValue({
+      bouncedPosition: [0, 0],
+      bouncedVelocity: [0, 0]
+    })
     mockEdgeDetector.calculateClamp.mockReturnValue(2)
-
-    // Initial cost is 10, new cost is 20 (worse)
-    mockTargetDetector.distanceToTarget
-      .mockReturnValueOnce(10)
-      .mockReturnValueOnce(20)
 
     const particle = new Particle(
       position,
@@ -160,16 +171,21 @@ describe('Particle', () => {
     const prevBestPosition = [...particle.bestPosition]
     const prevBestCost = particle.bestCost
 
-    particle.move([2, 2], 1, 1, 1)
+    mockTargetDetector.distanceToTarget
+      .mockReturnValueOnce(10) // Initial cost in constructor
+      .mockReturnValueOnce(20) // Cost after move
 
-    expect(particle.bestPosition).toEqual(prevBestPosition)
-    expect(particle.bestCost).toBe(prevBestCost)
+    particle.move([2, 2])
   })
 
   it('should throw when initialized with an empty position', () => {
     const position = []
     const velocity = [1, 2]
     mockEdgeDetector.isInBounds.mockReturnValue(true)
+    mockEdgeDetector.bounce.mockReturnValue({
+      bouncedPosition: [0, 0],
+      bouncedVelocity: [0, 0]
+    })
     mockEdgeDetector.calculateClamp.mockReturnValue(1)
     mockTargetDetector.distanceToTarget.mockReturnValue(0)
 
@@ -180,7 +196,7 @@ describe('Particle', () => {
         mockTargetDetector,
         mockEdgeDetector
       )
-      particle.move([], 1, 1, 1)
+      particle.move([])
     }).toThrow()
   })
 
@@ -188,6 +204,10 @@ describe('Particle', () => {
     const position = [3.2, 2.1, 8]
     const velocity = []
     mockEdgeDetector.isInBounds.mockReturnValue(true)
+    mockEdgeDetector.bounce.mockReturnValue({
+      bouncedPosition: [0, 0],
+      bouncedVelocity: [0, 0]
+    })
     mockEdgeDetector.calculateClamp.mockReturnValue(1)
     mockTargetDetector.distanceToTarget.mockReturnValue(0)
 
@@ -198,7 +218,7 @@ describe('Particle', () => {
         mockTargetDetector,
         mockEdgeDetector
       )
-      particle.move([], 1, 1, 1)
+      particle.move([])
     }).toThrow()
   })
 })

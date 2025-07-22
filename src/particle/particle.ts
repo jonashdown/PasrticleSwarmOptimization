@@ -16,6 +16,9 @@ export class Particle implements IParticle {
   private targetDetector: ATargetDetector
   private clampFactor = 0.2
   private edgeDetector: AEdgeDetector
+  private cognitiveCoefficient: number
+  private socialCoefficient: number
+  private inertiaWeight: number
 
   //needs a position, velocity, edge & target detector
   constructor(
@@ -28,6 +31,9 @@ export class Particle implements IParticle {
     this.velocity = validateVelocity(velocity)
     this.targetDetector = targetDetector
     this.edgeDetector = edgeDetector
+    this.cognitiveCoefficient = Math.random()
+    this.socialCoefficient = Math.random()
+    this.inertiaWeight = Math.random()
     this.updateBestPosition()
   }
 
@@ -59,54 +65,29 @@ export class Particle implements IParticle {
     }
   }
 
-  move(
-    bestPosition: ICoordinate,
-    cognitiveCoefficient: number,
-    socialCoefficient: number,
-    inertiaWeight: number
-  ) {
-    this.updateVelocity(
-      bestPosition,
-      cognitiveCoefficient,
-      socialCoefficient,
-      inertiaWeight
-    )
+  move(bestPosition: ICoordinate) {
+    this.updateVelocity(bestPosition)
     this.updatePosition()
     this.updateBestPosition()
   }
 
-  private updateVelocity(
-    bestPosition: ICoordinate,
-    cognitiveCoefficient: number,
-    socialCoefficient: number,
-    inertiaWeight: number
-  ) {
+  private updateVelocity(bestPosition: ICoordinate) {
     this.velocity = bestPosition.map((ordinate, dimension) =>
-      this.calculateVelocity(
-        ordinate,
-        dimension,
-        cognitiveCoefficient,
-        socialCoefficient,
-        inertiaWeight
-      )
+      this.calculateVelocity(ordinate, dimension)
     ) as IVelocity
   }
 
-  private calculateVelocity(
-    ordinate: number,
-    dimension: number,
-    cognitiveCoefficient: number,
-    socialCoefficient: number,
-    inertiaWeight: number
-  ): number {
+  private calculateVelocity(ordinate: number, dimension: number): number {
     const cognitiveVelocity =
-      cognitiveCoefficient *
+      this.cognitiveCoefficient *
       Math.random() *
       (ordinate - this.position[dimension])
     const socialVelocity =
-      socialCoefficient * Math.random() * (ordinate - this.position[dimension])
+      this.socialCoefficient *
+      Math.random() *
+      (ordinate - this.position[dimension])
     const velocity =
-      inertiaWeight * this.velocity[dimension] +
+      this.inertiaWeight * this.velocity[dimension] +
       cognitiveVelocity +
       socialVelocity
     const clamp = this.edgeDetector.calculateClamp(this.clampFactor)
